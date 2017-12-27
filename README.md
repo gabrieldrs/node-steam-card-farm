@@ -1,4 +1,6 @@
 # Node Steam Card Farm
+[![GitHub license](https://img.shields.io/github/license/gabrieldrs/node-steam-card-farm.svg?style=flat-square)](https://github.com/gabrieldrs/node-steam-card-farm/blob/master/LICENSE)
+![Node version](https://img.shields.io/badge/node-%3E%3D%206.11.2-green.svg?style=flat-square)
 ## Description
 This is a Steam Trading Cards Farming Machine powered by Node.js. 
 
