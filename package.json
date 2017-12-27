@@ -1,0 +1,20 @@
+{
+  "name": "node-steam-card-farm",
+  "version": "0.0.1",
+  "description": "A node.js application that can farm steam cards for you. Not only that, but it also comes with a configured docker build, which you can use to deploy anywhere in the cloud.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node index.js"
+  },
+  "author": "Gabriel R. Sezefredo <gabriel@sezefredo.com.br>",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "cheerio": "^1.0.0-rc.2",
+    "express": "^4.16.2",
+    "request": "^2.83.0",
+    "steam": "^1.4.0",
+    "steam-crypto": "0.0.1"
+  }
+}

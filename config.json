@@ -1,0 +1,9 @@
+{
+    "require_two_factor":true,
+    "idle": {
+        "delay_time_ms":10000,
+        "session_time_ms":180000,
+        "recache_time_mnts":15
+    },
+    "server_port":8080
+}
