@@ -1,6 +1,6 @@
 {
   "name": "node-steam-card-farm",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A node.js application that can farm steam cards for you. Not only that, but it also comes with a configured docker build, which you can use to deploy anywhere in the cloud.",
   "repository": "https://github.com/gabrieldrs/node-steam-card-farm",
   "main": "index.js",
