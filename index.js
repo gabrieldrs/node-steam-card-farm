@@ -6,7 +6,7 @@ const Steam = require('steam');
 const SteamUserPlus = require('./lib/steam-user-plus');
 const Client = new Steam.SteamClient();
 const User = new SteamUserPlus(Client);
-var logOnDetails = {account_name:'', password:'', two_factor_code:''}
+var logOnDetails = {account_name:'', password:''}
 
 const express = require('express')
 const app = express();
@@ -30,6 +30,7 @@ app.post('/', (req, res) => {
     if (req.body.user && req.body.password){
         logOnDetails.account_name = req.body.user;
         logOnDetails.password = req.body.password;
+        delete logOnDetails.two_factor_code
         if (req.body.token)
             logOnDetails.two_factor_code = req.body.token;
         if (Client._connection){
