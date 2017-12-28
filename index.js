@@ -62,7 +62,7 @@ User.on('webLogOnResponse',function(){
     User.emit('debug',"Web Logged, calling badge list");
 
     User.badgeList({},function(list){
-        User.emit('debug','The list of badges was successfully retrieved, '+list.length+' games to idle.');
+        User.emit('debug','The list of badges was successfully retrieved, '+list.length+' games in the list.');
         User.emit('debug','Starting Idle process');
         startIdle(list,{
             restart_after: config.idle.recache_time_mnts // minutes
@@ -71,7 +71,13 @@ User.on('webLogOnResponse',function(){
     });
 });
 
-function startIdle(gamesToIdle, args){
+function startIdle(gamesList, args){
+    var gamesToIdle = []
+    gamesList.forEach(function(val){
+        if (val.remaining_drops > 0)
+            gamesToIdle.push(val);
+    });
+    User.emit('debug',gamesToIdle.length+' games to idle.');
     if (args){
         if (args.restart_after && args.restart_after >= 5){
             User.emit('debug','Setting up restart strategy');
