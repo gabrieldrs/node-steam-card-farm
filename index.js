@@ -1,4 +1,3 @@
-const request = require('request');
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('./config.json'));
 
@@ -7,14 +6,16 @@ const SteamUserPlus = require('./lib/steam-user-plus');
 const Client = new Steam.SteamClient();
 const User = new SteamUserPlus(Client);
 var logOnDetails = {account_name:'', password:''}
+const Idler = require('./lib/idler');
+debug('User',User);
+debug('Client',Client);
 
-const express = require('express');
-const app = express();
-const bodyParser = require('body-parser')
+// Web
+const app = require('express')();
+const bodyParser = require('body-parser');
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 const port = config.server_port || 8080;
-
 var currentReq = null,
     currentRes = null;
 
@@ -46,7 +47,7 @@ app.post('/', (req, res) => {
         if (req.body.token)
             logOnDetails.two_factor_code = req.body.token;
         if (Client._connection){
-            stopIdle(idlingTimeouts);
+            stopIdle();
             Client.disconnect();
             Client.emit('disconnected');
         }
@@ -66,8 +67,6 @@ app.listen(port, (err) => {
     console.log(`server is listening on ${port}, please, go to the home page and submit your credentials information.`)
 });
 
-var idlingTimeouts = [];
-
 Client.on('connected',function(){
     User.logOn(logOnDetails);
 });
@@ -80,102 +79,68 @@ User.on('webLogOnResponse',function(){
         User.emit('debug','The list of badges was successfully retrieved, '+list.length+' games in the list.');
         User.emit('debug','Starting Idle process');
         startIdle(list,{
-            restart_after: config.idle.recache_time_mnts // minutes
+            recache_after: config.idle.recache_time_mnts // minutes
         });
         
     });
 });
 
+
+var idlingProcess = null;
+var recacheProcess = null;
 function startIdle(gamesList, args){
-    var gamesToIdle = []
-    gamesList.forEach(function(val){
-        if (val.remaining_drops > 0)
-            gamesToIdle.push(val);
-    });
-    User.emit('debug',gamesToIdle.length+' games to idle.');
-    if (args){
-        if (args.restart_after && args.restart_after >= 5){
-            User.emit('debug','Setting up restart strategy');
-            var restartTime = args.restart_after*60*1000
-            setTimeout(function(){
-                User.emit('debug','It has been a long time since we last checked the badge list');
-                User.emit('debug','Stopping current idle process');
-                stopIdle(idlingTimeouts);
-                User.badgeList({},function(list){
-                    User.emit('debug','The list of badges was successfully retrieved, '+list.length+' games to idle.');
-                    User.emit('debug','Restarting Idle process');
-                    startIdle(list,args);
-                })
-            },restartTime);
-        }
-    }
+    var idler = new Idler(User, gamesList);
+    debug('Idler', idler);
+
     User.emit('debug','Starting new idle session');
-    User.gamesPlayed([]);
-    User.emit('debug','Waiting '+(config.idle.delay_time_ms/1000)+' seconds before starting to idle');
-    idlingTimeouts.push(setTimeout(function(){
-        var currentSession = getGamesToIdleNext(gamesToIdle) || [];
-        if (currentSession.length > 0){
-            var gameIds = [];
-            User.emit('debug','Going to idle '+currentSession.length+' game(s) in this session.');
-            for (var i = 0 ; i < currentSession.length ; i++){
-                User.emit('debug',' Game: '+currentSession[i].game_title);
-                gameIds.push({game_id: currentSession[i].game_id})
-            }
-            User.gamesPlayed(gameIds);
-            idlingTimeouts.push(setTimeout(function(){
-                User.emit('debug',(config.idle.session_time_ms/1000/60) + ' minutes have passed, updating hours played');
-                for (var i = 0 ; i < currentSession.length ; i++){
-                    for (var j = 0 ; j < gamesToIdle.length ; j++){
-                        if (currentSession[i].game_id == gamesToIdle[j].game_id){
-                            var playedFor = config.idle.session_time_ms;
-                            playedFor/=1000/60/60;
-                            gamesToIdle[j].hours_played+=playedFor;
-                            break;
-                        }
-                    }
-                }
-                startIdle(gamesToIdle);
-            },config.idle.session_time_ms));
-        }else {
-            User.emit('debug','List of games to idle has finished, disconnecting client.')
-            stopIdle(idlingTimeouts);
-            Client.disconnect();
-            Client.emit('disconnected');
-            //TODO: fix this so it checks if there's new games to idle from time to time
-        }
-    },config.idle.delay_time_ms));
+    User.emit('debug','Session info:');
+    User.emit('debug','  Games to idle: '+idler.remainingGames.length);
+    User.emit('debug','  Idling restart time: '+config.idle.session_time_ms/1000/60+' minutes');
+    if (args && args.recache_after) User.emit('debug','  Game list recache time: '+args.recache_after+' minutes');
+    console.log(''); //Space on console.
+
+    if (args && args.recache_after){
+        recacheProcess = recacheAfter(idler, args.recache_after);
+    }
+    
+    idlingProcess = startIdleHelper(idler);
 
     if (currentRes){
         currentRes.redirect('/success');
-        currentRes = null;
-        currentReq = null;
-    }
-
-}
-
-function stopIdle(idlingTimeouts){
-    while (idlingTimeouts.length > 0) {
-        try {
-            clearTimeout(idlingTimeouts.shift());
-        }catch (e) {
-            //
-        }
+        currentRes = currentReq = null;
     }
 }
+function startIdleHelper(idler){
+    if (idler.idle()){
+        console.log(''); //Space on console.
+        return setTimeout(function(){
+            idler.shuffleRemaining();
+            idlingProcess = startIdleHelper(idler);
+        }, config.idle.session_time_ms);
+    }
+    return null;
+}
 
-function getGamesToIdleNext(gamesToIdle){
-    var returnList = [];
-    for (var i = 0,j = 0; i < 10 && j < gamesToIdle.length;j++){
-        if (gamesToIdle[j].hours_played < 2) {
-            returnList.push(gamesToIdle[j]);
-            i++;
-        }
-    }
-    if (returnList.length == 0){
-        returnList.push(gamesToIdle.shift());
-        gamesToIdle.push(returnList);
-    }
-    return returnList;
+function stopIdle(idler){
+    if (idler) idler.stop();
+    if (idlingProcess) clearTimeout(idlingProcess);
+    if (recacheProcess) clearTimeout(recacheProcess);
+}
+
+function recacheAfter(idler, minutes){
+    User.emit('debug','Setting up recache strategy.');
+    console.log('');
+    var milliseconds = minutes*60*1000;
+    return setTimeout(function(){
+        User.emit('debug','It has been a long time since we last checked the badge list');
+        User.badgeList({no_cache:true},function(list){
+            User.emit('debug','The list of badges was successfully retrieved, '+list.length+' games in the list.');
+            User.emit('debug','Updating idler');
+            console.log('');
+            idler.updateGamesLists(list);
+            recacheProcess = recacheAfter(idler,minutes);
+        });
+    },milliseconds);
 }
 
 
@@ -189,12 +154,24 @@ User.on('error',function(reason){
         currentRes = null;
     }
 });
-User.on('debug',function(msg){
-    console.log('[INFO][User]\t'+(new Date().toUTCString())+' - '+msg);
-});
-Client.on('debug',function(msg){
-    console.log('[INFO][Client]\t'+(new Date().toUTCString())+' - '+msg);
-});
+
+function debug(name,obj){
+    obj.on('debug',function(msg){
+        console.log('[INFO]['+name+']\t'+formatDate(new Date())+' - '+msg);
+    });
+}
+function formatDate(date){
+    var day = date.getDate(),
+        month = date.getMonth(),
+        year = date.getFullYear();
+
+    var hour = date.getHours(),
+        minutes = date.getMinutes(),
+        seconds = date.getSeconds(),
+        milliseconds = date.getMilliseconds();
+
+    return `${month}/${day}/${year} ${hour}:${minutes}:${seconds}.${milliseconds}`;
+}
 
 Client.on('disconnected',function(){
     Client.emit('debug','Client disconnected.');
