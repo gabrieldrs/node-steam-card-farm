@@ -8,22 +8,34 @@ const Client = new Steam.SteamClient();
 const User = new SteamUserPlus(Client);
 var logOnDetails = {account_name:'', password:''}
 
-const express = require('express')
+const express = require('express');
 const app = express();
 const bodyParser = require('body-parser')
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 const port = config.server_port || 8080;
 
+var currentReq = null,
+    currentRes = null;
 
+
+app.get('/login', (req, res) => {
+    res.sendFile('index.html',{ root: __dirname+'/views' });
+});
+app.get('/fail', (req, res) => {
+    res.sendFile('fail.html',{ root: __dirname+'/views' });
+});
+app.get('/success', (req, res) => {
+    res.sendFile('success.html',{ root: __dirname+'/views' });
+})
 
 app.get('/', (req, res) => {
-    if (Client._connection){
+    if (Client._connection && Client.loggedOn){
         stopIdle(idlingTimeouts);
         Client.disconnect();
         Client.emit('disconnected');
     }
-    res.sendFile('./http/index.html', { root: __dirname });
+    res.redirect('/login');
 });
 
 app.post('/', (req, res) => {
@@ -39,10 +51,12 @@ app.post('/', (req, res) => {
             Client.emit('disconnected');
         }
         // Connects to steam servers
+        currentReq = req;
+        currentRes = res;
         Client.connect();
-        res.sendFile('./http/success.html', { root: __dirname });
+        //res.sendFile('./http/success.html', { root: __dirname });
     }else {
-        res.sendFile('./http/fail.html', { root: __dirname });
+        res.redirect('/fail', { root: __dirname });
     }
 });
   
@@ -130,6 +144,13 @@ function startIdle(gamesList, args){
             //TODO: fix this so it checks if there's new games to idle from time to time
         }
     },config.idle.delay_time_ms));
+
+    if (currentRes){
+        currentRes.redirect('/success');
+        currentRes = null;
+        currentReq = null;
+    }
+
 }
 
 function stopIdle(idlingTimeouts){
@@ -161,7 +182,12 @@ function getGamesToIdleNext(gamesToIdle){
 // Misc handlers
 User.on('error',function(reason){
     console.log('Error');
-    console.log(reason)
+    console.log(reason);
+    if (currentRes){
+        currentRes.redirect('/fail?reason='+reason);
+        currentReq = null;
+        currentRes = null;
+    }
 });
 User.on('debug',function(msg){
     console.log('[INFO][User]\t'+(new Date().toUTCString())+' - '+msg);
