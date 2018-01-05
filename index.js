@@ -4,6 +4,7 @@ const config = JSON.parse(fs.readFileSync('./config.json'));
 const Steam = require('steam');
 const SteamUserPlus = require('./lib/steam-user-plus');
 const Client = new Steam.SteamClient();
+const EResult = Steam.EResult;
 const User = new SteamUserPlus(Client);
 var logOnDetails = {account_name:'', password:''}
 const Idler = require('./lib/idler');
@@ -44,8 +45,14 @@ app.post('/', (req, res) => {
         logOnDetails.account_name = req.body.user;
         logOnDetails.password = req.body.password;
         delete logOnDetails.two_factor_code
-        if (req.body.token)
-            logOnDetails.two_factor_code = req.body.token;
+        if (req.body.token){
+            if (User.loginType){
+                if (User.loginType == 'two_factor')
+                    logOnDetails.two_factor_code = req.body.token;
+                else if (User.loginType == 'email')
+                    logOnDetails.auth_code = req.body.token;
+            }
+        }
         if (Client._connection){
             stopIdle();
             Client.disconnect();
