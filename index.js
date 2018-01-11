@@ -1,5 +1,6 @@
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('./config.json'));
+var currentReq = null, currentRes = null;
 
 const Steam = require('steam');
 const SteamUserPlus = require('./lib/steam-user-plus');
@@ -8,8 +9,8 @@ const EResult = Steam.EResult;
 const User = new SteamUserPlus(Client);
 var logOnDetails = {account_name:'', password:''}
 const Idler = require('./lib/idler');
-debug('User',User);
-debug('Client',Client);
+registerClientHandlers(Client);
+registerUserHandlers(User);
 
 // Web
 const app = require('express')();
@@ -17,8 +18,6 @@ const bodyParser = require('body-parser');
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 const port = config.server_port || 8080;
-var currentReq = null,
-    currentRes = null;
 
 
 app.get('/login', (req, res) => {
@@ -72,24 +71,6 @@ app.listen(port, (err) => {
     if (err)
         return console.log('something bad happened', err)
     console.log(`server is listening on ${port}, please, go to the home page and submit your credentials information.`)
-});
-
-Client.on('connected',function(){
-    User.logOn(logOnDetails);
-});
-
-
-User.on('webLogOnResponse',function(){
-    User.emit('debug',"Web Logged, calling badge list");
-
-    User.badgeList({},function(list){
-        User.emit('debug','The list of badges was successfully retrieved, '+list.length+' games in the list.');
-        User.emit('debug','Starting Idle process');
-        startIdle(list,{
-            recache_after: config.idle.recache_time_mnts // minutes
-        });
-        
-    });
 });
 
 
@@ -150,17 +131,48 @@ function recacheAfter(idler, minutes){
     },milliseconds);
 }
 
+function registerClientHandlers(client){
+    debug('Client',client);
+    client.on('connected',function(){
+        User.logOn(logOnDetails);
+    });
+    client.on('disconnected',function(){
+        client.emit('debug','Client disconnected.');
+    });
+    client.on('error',function(){
+        console.log('There was an error with the client, disconnected. Waiting some time and retrying');
+        stopIdle(idlingTimeouts);
+        setTimeout(function(){
+            client.connect();
+        }, 60000);
+    });
+}
 
-// Misc handlers
-User.on('error',function(reason){
-    console.log('Error');
-    console.log(reason);
-    if (currentRes){
-        currentRes.redirect('/fail?reason='+reason);
-        currentReq = null;
-        currentRes = null;
-    }
-});
+function registerUserHandlers(user){
+    debug('User',user);
+    user.on('error',function(reason){
+        console.log('Error');
+        console.log(reason);
+        if (currentRes){
+            currentRes.redirect('/fail?reason='+reason);
+            currentReq = null;
+            currentRes = null;
+        }
+    });
+
+    user.on('webLogOnResponse',function(){
+        user.emit('debug',"Web Logged, calling badge list");
+    
+        user.badgeList({},function(list){
+            user.emit('debug','The list of badges was successfully retrieved, '+list.length+' games in the list.');
+            user.emit('debug','Starting Idle process');
+            startIdle(list,{
+                recache_after: config.idle.recache_time_mnts // minutes
+            });
+            
+        });
+    });
+}
 
 function debug(name,obj){
     obj.on('debug',function(msg){
@@ -179,14 +191,3 @@ function formatDate(date){
 
     return `${month}/${day}/${year} ${hour}:${minutes}:${seconds}.${milliseconds}`;
 }
-
-Client.on('disconnected',function(){
-    Client.emit('debug','Client disconnected.');
-});
-Client.on('error',function(){
-    console.log('There was an error with the client, disconnected. Waiting some time and retrying');
-    stopIdle(idlingTimeouts);
-    setTimeout(function(){
-        Client.connect();
-    }, 60000);
-})
