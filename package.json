@@ -12,10 +12,9 @@
   "license": "MIT",
   "dependencies": {
     "body-parser": "^1.18.2",
-    "cheerio": "^1.0.0-rc.2",
     "express": "^4.16.2",
-    "request": "^2.83.0",
     "steam": "^1.4.0",
-    "steam-crypto": "0.0.1"
+    "steam-crypto": "0.0.1",
+    "steam-user-plus": "0.0.1"
   }
 }

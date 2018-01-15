@@ -3,7 +3,7 @@ const config = JSON.parse(fs.readFileSync('./config.json'));
 var currentReq = null, currentRes = null;
 
 const Steam = require('steam');
-const SteamUserPlus = require('./lib/steam-user-plus');
+const SteamUserPlus = require('steam-user-plus');
 const Client = new Steam.SteamClient();
 const EResult = Steam.EResult;
 const User = new SteamUserPlus(Client);
@@ -120,8 +120,8 @@ function recacheAfter(idler, minutes){
     console.log('');
     var milliseconds = minutes*60*1000;
     return setTimeout(function(){
-        User.emit('debug','It has been a long time since we last checked the badge list');
-        User.badgeList({no_cache:true},function(list){
+        User.emit('debug','It has been a long time since we last checked the badge list, recaching...');
+        getBadgeList({no_cache:true},function(list){
             User.emit('debug','The list of badges was successfully retrieved, '+list.length+' games in the list.');
             User.emit('debug','Updating idler');
             console.log('');
@@ -163,7 +163,7 @@ function registerUserHandlers(user){
     user.on('webLogOnResponse',function(){
         user.emit('debug',"Web Logged, calling badge list");
     
-        user.badgeList({},function(list){
+        getBadgeList({},function(list){
             user.emit('debug','The list of badges was successfully retrieved, '+list.length+' games in the list.');
             user.emit('debug','Starting Idle process');
             startIdle(list,{
@@ -181,7 +181,7 @@ function debug(name,obj){
 }
 function formatDate(date){
     var day = date.getDate(),
-        month = date.getMonth(),
+        month = date.getMonth()+1,
         year = date.getFullYear();
 
     var hour = date.getHours(),
@@ -190,4 +190,33 @@ function formatDate(date){
         milliseconds = date.getMilliseconds();
 
     return `${month}/${day}/${year} ${hour}:${minutes}:${seconds}.${milliseconds}`;
+}
+
+function getBadgeList(args,cb){
+    var no_cache = args.no_cache || false;
+
+    // First, let's check if we have a valid cache file
+    if (!no_cache && fs.existsSync('./cache.json')){
+        var fileContent = JSON.parse(fs.readFileSync('./cache.json'));
+        var cacheDate = new Date(fileContent.timestamp);
+        var maxDate = new Date(new Date() - 5*60000);
+        
+        if (cacheDate >= maxDate){
+            return cb(fileContent.list);
+        }else 
+            return User.badgeList(function(list){
+                updateCache(list);
+                cb(list);
+            });
+    }else
+        return User.badgeList(function(list){
+            updateCache(list);
+            cb(list);
+        });
+}
+function updateCache(list){
+    var cache = {};
+    cache.timestamp = new Date().toISOString();
+    cache.list = list;
+    fs.writeFileSync('./cache.json',JSON.stringify(cache));
 }
