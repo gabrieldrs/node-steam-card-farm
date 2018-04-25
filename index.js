@@ -2,6 +2,7 @@ const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('./config.json'));
 var currentReq = null, currentRes = null;
 
+
 const Steam = require('steam');
 const SteamUserPlus = require('steam-user-plus');
 const Client = new Steam.SteamClient();
