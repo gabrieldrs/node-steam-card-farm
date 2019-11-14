@@ -13,30 +13,24 @@ registerClientHandlers(Client);
 registerUserHandlers(User);
 
 // Web
-const app = require('express')();
+const express=require('express');
+const app = express();
 const bodyParser = require('body-parser');
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 const port = config.server_port || 8080;
 
-
-app.get('/login', (req, res) => {
-    res.sendFile('index.html',{ root: __dirname+'/views' });
-});
-app.get('/fail', (req, res) => {
-    res.sendFile('fail.html',{ root: __dirname+'/views' });
-});
-app.get('/success', (req, res) => {
-    res.sendFile('success.html',{ root: __dirname+'/views' });
-})
-
-app.get('/', (req, res) => {
-    if (Client._connection && Client.loggedOn){
-        stopIdle(idlingTimeouts);
-        Client.disconnect();
-        Client.emit('disconnected');
+app.use(express.static('static'))
+app.get('/:page?', (req, res) => {
+    if (!req.params.page) {
+        if (Client._connection && Client.loggedOn){
+            stopIdle(idlingTimeouts);
+            Client.disconnect();
+            Client.emit('disconnected');
+        }
+        req.params.page = 'login'
     }
-    res.redirect('/login');
+    res.sendFile(`${req.params.page}.html`,{ root: __dirname+'/views' });
 });
 
 app.post('/', (req, res) => {
