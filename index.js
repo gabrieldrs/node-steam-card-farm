@@ -6,7 +6,6 @@ var currentReq = null, currentRes = null;
 const Steam = require('steam');
 const SteamUserPlus = require('steam-user-plus');
 const Client = new Steam.SteamClient();
-const EResult = Steam.EResult;
 const User = new SteamUserPlus(Client);
 var logOnDetails = {account_name:'', password:''}
 const Idler = require('./lib/idler');
